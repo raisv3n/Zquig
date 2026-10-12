@@ -43,10 +43,20 @@ final class DragHandle: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
 
+    /// The dragged PNG lives in a per-drag temp folder; remove it shortly after the drop (the receiver may read it lazily).
+    private var dragDir: URL?
+
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        guard let dir = dragDir else { return }
+        dragDir = nil
+        DispatchQueue.global().asyncAfter(deadline: .now() + 30) { try? FileManager.default.removeItem(at: dir) }
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let data = provider?(), data.count > 0 else { return }
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("zquig-drag", isDirectory: true)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("zquig-drag-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        dragDir = dir
         let url = dir.appendingPathComponent(name.replacingOccurrences(of: "/", with: "-") + ".png")
         guard (try? data.write(to: url, options: .atomic)) != nil else { return }
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)

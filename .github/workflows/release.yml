@@ -13,8 +13,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Package (universal)
-        run: UNIVERSAL=1 ./package.sh
+      - name: Package (Apple Silicon)
+        run: ./package.sh
       - uses: actions/upload-artifact@v4
         with:
           name: Zquig

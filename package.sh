@@ -1,7 +1,6 @@
 #!/bin/bash
-# Packages a ready-to-install bundle for another Mac (no Swift toolchain needed there):
+# Packages a ready-to-install bundle for another Apple Silicon Mac (no Swift toolchain needed there):
 #   dist/Zquig.zip  ->  Zquig.app, install.sh
-# Set UNIVERSAL=1 for an arm64 + x86_64 build; otherwise the target Mac needs Apple Silicon.
 set -euo pipefail
 cd "$(dirname "$0")"
 

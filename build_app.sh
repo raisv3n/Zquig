@@ -1,12 +1,9 @@
 #!/bin/bash
 # Builds Zquig.app (Apple Silicon, arm64) into ./dist
-# Set UNIVERSAL=1 for an arm64 + x86_64 build that also runs on Intel Macs.
 set -euo pipefail
 cd "$(dirname "$0")"
-ARCHS=(--arch arm64)
-if [ "${UNIVERSAL:-0}" = 1 ]; then ARCHS+=(--arch x86_64); fi
-swift build -c release "${ARCHS[@]}"
-BIN=$(swift build -c release "${ARCHS[@]}" --show-bin-path)/Zquig
+swift build -c release --arch arm64
+BIN=$(swift build -c release --arch arm64 --show-bin-path)/Zquig
 APP=dist/Zquig.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -22,7 +19,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleExecutable</key><string>Zquig</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0.0</string>
+<key>CFBundleShortVersionString</key><string>1.0.1</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>

@@ -14,7 +14,7 @@ A lightweight screenshot annotation app for macOS, written in Swift with AppKit.
 
 ## Install
 
-Download `Zquig.zip` from the latest [release](https://github.com/raisv3n/Zquig/releases/latest). It is a universal build that runs on both Apple Silicon and Intel Macs. Unzip it, then run:
+Download `Zquig.zip` from the latest [release](https://github.com/raisv3n/Zquig/releases/latest). It is built for Apple Silicon Macs (M1 or later) and won't run on Intel Macs. Unzip it, then run:
 
 ```sh
 cd ~/Downloads/Zquig
@@ -25,7 +25,7 @@ This copies `Zquig.app` to `/Applications` and clears the download quarantine fl
 
 ## Requirements
 
-- macOS 12 or later
+- macOS 12 or later on an Apple Silicon Mac
 - Swift 5.9+ toolchain (Xcode or Command Line Tools), only needed to build from source
 
 ## Build from source
@@ -39,7 +39,7 @@ open dist/Zquig.app
 
 The three capture commands use macOS's built-in `screencapture` tool, so macOS may ask you to allow screen access for Zquig (System Settings > Privacy & Security > Screen Recording). That is only so it can take a screenshot. Zquig never records video, and everything stays on your machine. If you only open images, PDFs or the clipboard, you won't be asked.
 
-`./package.sh` builds the app and wraps it with an install script in `dist/Zquig.zip`. With `UNIVERSAL=1 ./package.sh` you get an arm64 + x86_64 build, which needs full Xcode. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds the universal zip and attaches it to a GitHub release.
+`./package.sh` builds the app and wraps it with an install script in `dist/Zquig.zip`. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds the zip and attaches it to a GitHub release.
 
 For a quick development run without packaging:
 

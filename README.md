@@ -24,7 +24,9 @@ A lightweight screenshot annotation app for macOS, written in Swift with AppKit.
 open dist/Zquig.app
 ```
 
-`build_app.sh` builds an Apple Silicon (arm64) release binary, assembles `dist/Zquig.app` and ad-hoc signs it. The first launch may need a right-click > Open, and the capture commands need Screen Recording permission in System Settings > Privacy & Security.
+`build_app.sh` builds an Apple Silicon (arm64) release binary, assembles `dist/Zquig.app` and ad-hoc signs it. The app is ad-hoc signed, so the first launch may need a right-click > Open.
+
+The three capture commands use macOS's built-in `screencapture` tool, so macOS may ask you to allow screen access for Zquig (System Settings > Privacy & Security > Screen Recording). That is only so it can take a screenshot. Zquig never records video, and everything stays on your machine. If you only open images, PDFs or the clipboard, you won't be asked.
 
 For a quick development run without packaging:
 
@@ -45,6 +47,20 @@ swift run
 | Copy Whole Image | Shift Cmd C |
 | Undo / Redo | Cmd Z / Shift Cmd Z |
 
+Inside an image window:
+
+| Action | Key |
+| --- | --- |
+| Select tool | A |
+| Text tool | T |
+| Arrow tool | Q |
+| Delete selected annotation | Delete / Forward Delete |
+| Deselect | Esc |
+| Nudge selected annotation | Arrow keys (1 px), Shift + Arrow keys (10 px) |
+| Finish editing text | Cmd Return or Esc |
+
+The other tools are chosen from the toolbar.
+
 ## Project layout
 
 ```
@@ -59,4 +75,4 @@ build_app.sh            Builds and packages the .app bundle
 
 ## License
 
-[MIT](LICENSE)
+Personal use only. See [LICENSE](LICENSE). This is not an open-source license.

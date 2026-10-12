@@ -78,6 +78,10 @@ enum Prefs {
     }
 
     static var color: NSColor { get { load("color") ?? .systemRed } set { store(newValue, "color") } }
+    static var textOutline: Bool {
+        get { d.object(forKey: "textOutline") as? Bool ?? true }
+        set { d.set(newValue, forKey: "textOutline") }
+    }
     static var width: CGFloat {
         get { let w = d.double(forKey: "width"); return w > 0 ? CGFloat(w) : 4 }
         set { d.set(Double(newValue), forKey: "width") }
@@ -95,6 +99,10 @@ final class CenteringClipView: NSClipView {
     }
 }
 
+private extension NSColor {
+    static let mustard = NSColor(srgbRed: 0.84, green: 0.63, blue: 0.08, alpha: 1)
+}
+
 private extension NSToolbarItem.Identifier {
     static let tools = NSToolbarItem.Identifier("tools")
     static let style = NSToolbarItem.Identifier("style")
@@ -106,6 +114,7 @@ private extension NSToolbarItem.Identifier {
 final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
     let canvas: CanvasView
     private let handle = DragHandle()
+    private let scroll = NSScrollView()
     private var toolGroup: NSToolbarItemGroup?
     private var historyGroup: NSToolbarItemGroup?
     private let styleButton = NSButton()
@@ -115,16 +124,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     var fileURL: URL?
 
     private static let palette: [NSColor] = [
-        .systemRed, .systemOrange, .systemYellow, .systemGreen, .systemBlue, .systemPurple,
+        .systemRed, .systemOrange, .mustard, .systemGreen, .systemBlue, .systemPurple,
         .black, .white, .systemGray,
     ]
-    private static let sizes: [CGFloat] = [2, 4, 8]
+    private static let sizes: [CGFloat] = [2, 4, 8, 16, 32]
 
     init(image: NSImage, title: String, fileURL: URL? = nil) {
         self.fileURL = fileURL
         canvas = CanvasView(image: image)
         canvas.color = Prefs.color
         canvas.lineWidth = Prefs.width
+        canvas.textOutline = Prefs.textOutline
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 640),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
@@ -145,7 +155,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     // MARK: UI
 
     private func buildUI(in window: NSWindow) {
-        let scroll = NSScrollView()
         scroll.contentView = CenteringClipView()
         scroll.documentView = canvas
         scroll.hasVerticalScroller = true
@@ -153,6 +162,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         scroll.drawsBackground = true
         scroll.backgroundColor = .underPageBackgroundColor
         scroll.autohidesScrollers = true
+        scroll.allowsMagnification = true
+        scroll.minMagnification = 0.05
+        scroll.maxMagnification = 8
         window.contentView = scroll
 
         handle.provider = { [weak self] in self?.canvas.exportData(.png) }
@@ -189,11 +201,23 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         historyGroup?.subitems.last?.isEnabled = canvas.canRedo
     }
 
+    /// Sizes the window around the image. Images larger than the screen are scaled down to fit
+    /// (via scroll-view magnification); smaller ones stay at 100%.
     private func fitWindow(to size: NSSize) {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = NSScreen.main, size.width > 0, size.height > 0, let window = window else { return }
         let maxW = screen.visibleFrame.width * 0.9, maxH = screen.visibleFrame.height * 0.85
-        let w = min(max(size.width + 40, 640), maxW), h = min(max(size.height + 40, 400), maxH)
-        window?.setContentSize(NSSize(width: w, height: h))
+        let scale = min(1, (maxW - 40) / size.width, (maxH - 40) / size.height)
+        let w = min(max(size.width * scale + 40, 640), maxW), h = min(max(size.height * scale + 40, 400), maxH)
+        window.setContentSize(NSSize(width: w, height: h))
+        window.layoutIfNeeded()
+        // Fit against the real visible area (toolbar and title bar already excluded), never enlarging.
+        let view = scroll.contentSize
+        let fit = min(1, view.width / size.width, view.height / size.height)
+        scroll.magnification = fit
+        if let clip = scroll.contentView as? NSClipView {
+            clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: .zero, size: clip.bounds.size)).origin)
+            scroll.reflectScrolledClipView(clip)
+        }
     }
 
     /// Keeps the toolbar's selected tool in step with the canvas (also re-applied once the window is on screen).
@@ -321,7 +345,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
             b.tag = i
             b.target = self
             b.action = #selector(swatchPicked(_:))
-            b.toolTip = ["Red", "Orange", "Yellow", "Green", "Blue", "Purple", "Black", "White", "Gray"][i]
+            b.toolTip = ["Red", "Orange", "Mustard", "Green", "Blue", "Purple", "Black", "White", "Gray"][i]
             b.widthAnchor.constraint(equalToConstant: 22).isActive = true
             b.heightAnchor.constraint(equalToConstant: 22).isActive = true
             swatches.append(b)
@@ -345,7 +369,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let seg = NSSegmentedControl(images: Self.sizes.map { w in
             NSImage(size: NSSize(width: 26, height: 18), flipped: false) { r in
                 NSColor.labelColor.setFill()
-                let d = 4 + w * 1.6
+                let d = 2 + 2.8 * log2(w)  // log scale keeps the biggest dot inside the 18pt icon
                 NSBezierPath(ovalIn: NSRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)).fill()
                 return true
             }
@@ -354,11 +378,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         seg.selectedSegment = nearest
         for i in 0..<Self.sizes.count { seg.setWidth(44, forSegment: i) }
 
-        let root = NSStackView(views: [sectionLabel("COLOUR"), colorStack, sectionLabel("THICKNESS"), seg])
+        let outline = NSButton(checkboxWithTitle: "Text border & shadow", target: self, action: #selector(outlineToggled(_:)))
+        outline.state = canvas.textOutline ? .on : .off
+
+        let root = NSStackView(views: [sectionLabel("COLOUR"), colorStack, sectionLabel("THICKNESS"), seg, sectionLabel("TEXT"), outline])
         root.orientation = .vertical
         root.alignment = .leading
         root.spacing = 8
         root.setCustomSpacing(14, after: colorStack)
+        root.setCustomSpacing(14, after: seg)
         root.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         return root
     }
@@ -376,6 +404,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         updateStyleButton()
     }
 
+    @objc private func outlineToggled(_ b: NSButton) {
+        let on = b.state == .on
+        canvas.applyOutline(on)
+        canvas.endStyleChange()
+        Prefs.textOutline = on
+    }
+
     @objc private func sizePicked(_ s: NSSegmentedControl) {
         let w = Self.sizes[s.selectedSegment]
         canvas.applyWidth(w)
@@ -385,28 +420,60 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
 
     func windowWillClose(_ notification: Notification) { onClose?(self) }
 
+    /// Closing (red button or ⌘W) with unsaved edits asks first; a clean window closes silently.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender.isDocumentEdited else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Do you want to save the changes made to “\(sender.title)”?"
+        alert.informativeText = "Your changes will be lost if you don’t save them."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Don’t Save")
+        alert.beginSheetModal(for: sender) { [weak self, weak sender] response in
+            guard let self = self, let sender = sender else { return }
+            switch response {
+            case .alertFirstButtonReturn:
+                self.save { saved in if saved { sender.close() } }
+            case .alertThirdButtonReturn:
+                sender.isDocumentEdited = false
+                sender.close()
+            default: break
+            }
+        }
+        return false
+    }
+
     // MARK: Saving
 
     /// ⌘S: overwrite the original file. Windows with no file yet (captures, clipboard) and PDFs
     /// (a multi-page PDF can't be rewritten from one flattened image) fall back to Save As.
-    @objc func saveDocument(_ sender: Any?) {
-        guard let url = fileURL, url.pathExtension.lowercased() != "pdf" else { return saveDocumentAs(sender) }
-        if write(to: url) { window?.isDocumentEdited = false }
+    @objc func saveDocument(_ sender: Any?) { save(completion: nil) }
+
+    private func save(completion: ((Bool) -> Void)?) {
+        guard let url = fileURL, url.pathExtension.lowercased() != "pdf" else { return saveAs(completion: completion) }
+        let ok = write(to: url)
+        if ok { window?.isDocumentEdited = false }
+        completion?(ok)
     }
 
-    @objc func saveDocumentAs(_ sender: Any?) {
+    @objc func saveDocumentAs(_ sender: Any?) { saveAs(completion: nil) }
+
+    private func saveAs(completion: ((Bool) -> Void)?) {
         guard let window = window else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png, .jpeg, .tiff, .pdf]
         panel.nameFieldStringValue = window.title.replacingOccurrences(of: "/", with: "-") + ".png"
         panel.canCreateDirectories = true
         panel.beginSheetModal(for: window) { [weak self] r in
-            guard r == .OK, let url = panel.url, let self = self else { return }
-            if self.write(to: url) {
+            guard r == .OK, let url = panel.url, let self = self else { completion?(false); return }
+            let ok = self.write(to: url)
+            if ok {
                 self.fileURL = url
                 window.title = url.deletingPathExtension().lastPathComponent
                 self.handle.name = window.title
+                window.isDocumentEdited = false
             }
+            completion?(ok)
         }
     }
 

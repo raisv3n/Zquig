@@ -50,6 +50,8 @@ struct Annotation {
     var wrapLimit: CGFloat = 10_000
     /// Set when the user drags a text block's side handles; nil means "wrap at the canvas edge".
     var customWidth: CGFloat?
+    /// Text only: white border plus soft shadow around the glyphs.
+    var outline = true
 
     var rect: NSRect {
         NSRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
@@ -188,9 +190,14 @@ struct Annotation {
     /// White border drawn *outside* the glyphs, with a soft shadow underneath.
     private func drawText() {
         let size = font.pointSize
-        let radius = max(1.5, size * 0.085)
+        let radius = max(1, size * 0.05)
         let pad = ceil(size * 0.6)
         let ts = layoutSize()
+        guard outline else {
+            (text as NSString).draw(with: NSRect(x: a.x, y: a.y, width: wrapLimit, height: ts.height + 4),
+                                    options: [.usesLineFragmentOrigin], attributes: [.font: font, .foregroundColor: color])
+            return
+        }
         let shadow = Self.shadowImage(text: text, font: font, radius: radius, pad: pad, wrap: wrapLimit, size: ts)
         let dy = max(1.5, size * 0.09)
         shadow.draw(in: NSRect(x: a.x - pad, y: a.y - pad + dy, width: ts.width + 2 * pad, height: ts.height + 2 * pad),

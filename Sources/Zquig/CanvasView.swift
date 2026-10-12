@@ -12,6 +12,7 @@ final class CanvasView: NSView, NSTextFieldDelegate, NSMenuItemValidation {
     var onToolChange: ((Tool) -> Void)?
     var color: NSColor = .systemRed
     var lineWidth: CGFloat = 4
+    var textOutline = true
     var onChange: (() -> Void)?
     /// Called when the selection changes (nil when nothing is selected).
     var onSelect: ((Annotation?) -> Void)?
@@ -218,7 +219,7 @@ final class CanvasView: NSView, NSTextFieldDelegate, NSMenuItemValidation {
         } else if let str = pb.string(forType: .string), !str.isEmpty {
             let o = CGPoint(x: visibleRect.minX + 24, y: visibleRect.minY + 24)
             commit()
-            annotations.append(Annotation(kind: .text, a: o, b: o, color: color, width: lineWidth, text: str))
+            annotations.append(Annotation(kind: .text, a: o, b: o, color: color, width: lineWidth, text: str, outline: textOutline))
             select(annotations.count - 1)
             onChange?()
         } else {
@@ -234,6 +235,7 @@ final class CanvasView: NSView, NSTextFieldDelegate, NSMenuItemValidation {
         if let i = i, annotations.indices.contains(i) {
             let a = annotations[i]
             color = a.color; lineWidth = a.width
+            if a.kind == .text { textOutline = a.outline }
             onSelect?(a)
         } else {
             onSelect?(nil)
@@ -255,6 +257,14 @@ final class CanvasView: NSView, NSTextFieldDelegate, NSMenuItemValidation {
         guard let i = selected, annotations.indices.contains(i) else { return }
         if !didStyleCommit { commit(); didStyleCommit = true }
         annotations[i].width = w
+        needsDisplay = true
+    }
+
+    func applyOutline(_ on: Bool) {
+        textOutline = on
+        guard let i = selected, annotations.indices.contains(i), annotations[i].kind == .text else { return }
+        if !didStyleCommit { commit(); didStyleCommit = true }
+        annotations[i].outline = on
         needsDisplay = true
     }
     private var didStyleCommit = false
@@ -503,7 +513,7 @@ final class CanvasView: NSView, NSTextFieldDelegate, NSMenuItemValidation {
             if s.isEmpty { annotations.remove(at: i); select(nil) } else { annotations[i].text = s }
         } else if !s.isEmpty {
             commit()
-            annotations.append(Annotation(kind: .text, a: editorOrigin, b: editorOrigin, color: color, width: lineWidth, text: s))
+            annotations.append(Annotation(kind: .text, a: editorOrigin, b: editorOrigin, color: color, width: lineWidth, text: s, outline: textOutline))
             select(annotations.count - 1)
         }
         needsDisplay = true

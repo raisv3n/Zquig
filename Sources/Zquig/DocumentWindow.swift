@@ -166,6 +166,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         scroll.minMagnification = 0.05
         scroll.maxMagnification = 8
         window.contentView = scroll
+        NotificationCenter.default.addObserver(self, selector: #selector(liveMagnifyStarted(_:)),
+                                               name: NSScrollView.willStartLiveMagnifyNotification, object: scroll)
 
         handle.provider = { [weak self] in self?.canvas.exportData(.png) }
         handle.translatesAutoresizingMaskIntoConstraints = false
@@ -197,6 +199,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
     private func refresh() {
         let s = canvas.base.size
         window?.subtitle = "\(Int(s.width)) × \(Int(s.height))"
+        // Crop, undo or a dropped-in image changed the size: keep it fitted.
+        if fitsToWindow && s != fittedSize && fittedSize != .zero { applyFit() }
         historyGroup?.subitems.first?.isEnabled = canvas.canUndo
         historyGroup?.subitems.last?.isEnabled = canvas.canRedo
     }
@@ -210,14 +214,60 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, NSTo
         let w = min(max(size.width * scale + 40, 640), maxW), h = min(max(size.height * scale + 40, 400), maxH)
         window.setContentSize(NSSize(width: w, height: h))
         window.layoutIfNeeded()
-        // Fit against the real visible area (toolbar and title bar already excluded), never enlarging.
-        let view = scroll.contentSize
-        let fit = min(1, view.width / size.width, view.height / size.height)
-        scroll.magnification = fit
-        if let clip = scroll.contentView as? NSClipView {
-            clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: .zero, size: clip.bounds.size)).origin)
-            scroll.reflectScrolledClipView(clip)
+        applyFit()
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        // The toolbar settles only once the window is on screen, shrinking the viewport; fit again then.
+        DispatchQueue.main.async { [weak self] in
+            if self?.fitsToWindow == true { self?.applyFit() }
         }
+    }
+
+    // MARK: Zoom
+
+    /// While true the image tracks the window size (re-fitted on resize); any manual zoom turns it off.
+    private var fitsToWindow = true
+    private var fittedSize = NSSize.zero
+
+    /// Scales the image to fit the viewport, never enlarging past 100%.
+    private func applyFit() {
+        let size = canvas.base.size
+        guard size.width > 0, size.height > 0 else { return }
+        fittedSize = size
+        // Measure the whole scroll view, not contentSize, which shrinks while scrollers are showing.
+        // The 1pt slack keeps rounding from bringing the scrollers back.
+        let view = scroll.frame.size
+        scroll.magnification = min(1, (view.width - 1) / size.width, (view.height - 1) / size.height)
+        let clip = scroll.contentView
+        clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: .zero, size: clip.bounds.size)).origin)
+        scroll.reflectScrolledClipView(clip)
+    }
+
+    private func zoom(to m: CGFloat) {
+        fitsToWindow = false
+        let clip = scroll.contentView
+        let m = min(max(m, scroll.minMagnification), scroll.maxMagnification)
+        scroll.setMagnification(m, centeredAt: NSPoint(x: clip.bounds.midX, y: clip.bounds.midY))
+    }
+
+    private func zoom(by factor: CGFloat) {
+        let old = scroll.magnification
+        var m = old * factor
+        if (old - 1) * (m - 1) < 0 { m = 1 }  // stop at 100% on the way through
+        zoom(to: m)
+    }
+
+    @objc func zoomIn(_ sender: Any?) { zoom(by: 1.25) }
+    @objc func zoomOut(_ sender: Any?) { zoom(by: 1 / 1.25) }
+    @objc func zoomActualSize(_ sender: Any?) { zoom(to: 1) }
+    @objc func zoomToFit(_ sender: Any?) { fitsToWindow = true; applyFit() }
+
+    @objc private func liveMagnifyStarted(_ n: Notification) { fitsToWindow = false }
+
+    func windowDidResize(_ notification: Notification) {
+        if fitsToWindow { applyFit() }
     }
 
     /// Keeps the toolbar's selected tool in step with the canvas (also re-applied once the window is on screen).

@@ -9,7 +9,9 @@ A lightweight screenshot annotation app for macOS, written in Swift with AppKit.
 - **Annotation tools:** select, arrow, line, rectangle, ellipse, pen, highlighter, text, numbered stamp, pixelate (for redacting), and crop.
 - **Editable annotations:** move and resize shapes after drawing them, change color and stroke width, and copy and paste them between windows.
 - **Text:** wrapping text blocks with a resizable width, a white outline and a soft shadow.
+- **Zoom:** large images open scaled to fit the window and stay fitted as you resize it. Zoom in and out with the keyboard or a trackpad pinch. Zoom only changes the view; exports stay full resolution.
 - **Undo/redo** for every edit.
+- **Quits with its last window:** closing the last window quits the app instead of leaving it in the Dock. You're still asked to save unsaved changes first.
 - **Export:** PNG, JPEG, TIFF or PDF. You can also copy the whole image or drag it out of the window.
 
 ## Install
@@ -59,6 +61,9 @@ swift run
 | Save / Save As | Cmd S / Shift Cmd S |
 | Copy Whole Image | Shift Cmd C |
 | Undo / Redo | Cmd Z / Shift Cmd Z |
+| Zoom In / Zoom Out | Cmd + (or Cmd =) / Cmd - |
+| Actual Size | Cmd 1 |
+| Zoom to Fit | Cmd 0 |
 
 Inside an image window:
 

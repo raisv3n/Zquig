@@ -11,7 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    // Closing the last window quits instead of leaving the app idling in the Dock.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { newFromClipboardOrBlank() }
@@ -173,6 +174,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .separator(),
             mi("Copy Whole Image", #selector(DocumentWindowController.copyImage(_:)), "c", [.command, .shift]),
             mi("Delete Annotation", #selector(CanvasView.deleteSelection(_:)), "\u{8}", []),
+        ])
+        // ⌘= is the unshifted ⌘+ on most layouts; a hidden twin catches it.
+        let zoomInAlt = mi("Zoom In", #selector(DocumentWindowController.zoomIn(_:)), "=")
+        zoomInAlt.isHidden = true
+        zoomInAlt.allowsKeyEquivalentWhenHidden = true
+        add("View", [
+            mi("Zoom In", #selector(DocumentWindowController.zoomIn(_:)), "+"),
+            zoomInAlt,
+            mi("Zoom Out", #selector(DocumentWindowController.zoomOut(_:)), "-"),
+            .separator(),
+            mi("Actual Size", #selector(DocumentWindowController.zoomActualSize(_:)), "1"),
+            mi("Zoom to Fit", #selector(DocumentWindowController.zoomToFit(_:)), "0"),
         ])
         add("Window", [
             mi("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
